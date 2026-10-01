@@ -9,7 +9,7 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.auth import Token
 from app.schemas.user import UserCreate, UserLogin, UserOut
-from app.services.activity_service import log_activity
+from app.workers.tasks import enqueue_activity_log
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -49,5 +49,5 @@ async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
         )
 
     access_token = create_access_token(subject=user.email)
-    await log_activity(db, user_id=user.id, action="login", detail=f"User {user.email} logged in")
+    await enqueue_activity_log(user_id=user.id, action="login", detail=f"User {user.email} logged in")
     return Token(access_token=access_token)

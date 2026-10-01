@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models.task import Task
 from app.models.user import User
 from app.schemas.task import TaskCreate, TaskOut, TaskUpdate
-from app.services.activity_service import log_activity
+from app.workers.tasks import enqueue_activity_log
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -30,7 +30,7 @@ async def create_task(
     db.add(task)
     await db.commit()
     await db.refresh(task)
-    await log_activity(db, user_id=current_user.id, action="task_created", detail=f"Task '{task.title}' created")
+    await enqueue_activity_log(user_id=current_user.id, action="task_created", detail=f"Task '{task.title}' created")
     return task
 
 
@@ -75,7 +75,7 @@ async def update_task(
 
     await db.commit()
     await db.refresh(task)
-    await log_activity(db, user_id=current_user.id, action="task_updated", detail=f"Task '{task.title}' updated")
+    await enqueue_activity_log(user_id=current_user.id, action="task_updated", detail=f"Task '{task.title}' updated")
     return task
 
 
@@ -89,5 +89,5 @@ async def delete_task(
     title = task.title
     await db.delete(task)
     await db.commit()
-    await log_activity(db, user_id=current_user.id, action="task_deleted", detail=f"Task '{title}' deleted")
+    await enqueue_activity_log(user_id=current_user.id, action="task_deleted", detail=f"Task '{title}' deleted")
     return None
