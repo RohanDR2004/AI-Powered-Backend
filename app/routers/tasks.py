@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,10 +36,18 @@ async def create_task(
 
 @router.get("", response_model=list[TaskOut])
 async def list_tasks(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Task).where(Task.owner_id == current_user.id))
+    result = await db.execute(
+        select(Task)
+        .where(Task.owner_id == current_user.id)
+        .order_by(Task.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     return result.scalars().all()
 
 

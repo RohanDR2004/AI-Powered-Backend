@@ -29,6 +29,26 @@ def test_list_tasks_only_returns_own_tasks(client, auth_headers):
     assert len(response.json()) == 2
 
 
+def test_list_tasks_pagination(client, auth_headers):
+    for i in range(5):
+        client.post("/tasks", json={"title": f"Task {i}"}, headers=auth_headers)
+
+    response = client.get("/tasks?skip=0&limit=2", headers=auth_headers)
+    assert response.status_code == 200
+    assert len(response.json()) == 2
+
+    response = client.get("/tasks?skip=4&limit=2", headers=auth_headers)
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+
+
+def test_list_tasks_invalid_limit_fails(client, auth_headers):
+    response = client.get("/tasks?limit=0", headers=auth_headers)
+    assert response.status_code == 422
+    response = client.get("/tasks?limit=500", headers=auth_headers)
+    assert response.status_code == 422
+
+
 def test_get_task_by_id(client, auth_headers):
     create_response = client.post("/tasks", json={"title": "Task"}, headers=auth_headers)
     task_id = create_response.json()["id"]

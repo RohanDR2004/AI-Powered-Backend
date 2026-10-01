@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +13,8 @@ router = APIRouter(prefix="/activity-logs", tags=["activity-logs"])
 
 @router.get("", response_model=list[ActivityLogOut])
 async def list_activity_logs(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -20,5 +22,7 @@ async def list_activity_logs(
         select(ActivityLog)
         .where(ActivityLog.user_id == current_user.id)
         .order_by(ActivityLog.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     return result.scalars().all()

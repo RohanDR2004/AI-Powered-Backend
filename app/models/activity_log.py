@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -8,6 +8,11 @@ from app.database import Base
 
 class ActivityLog(Base):
     __tablename__ = "activity_logs"
+    __table_args__ = (
+        # Every query filters by user_id and orders by created_at desc
+        # (GET /activity-logs), so a composite index serves both at once.
+        Index("ix_activity_logs_user_id_created_at", "user_id", "created_at"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
