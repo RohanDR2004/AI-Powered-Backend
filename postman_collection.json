@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "AI-Powered Backend Platform",
-    "description": "Phase 1 backend: auth, tasks CRUD, AI integration, activity logs.",
+    "description": "Auth, tasks CRUD, AI integration, activity logs, and Phase 2 monitoring endpoints.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -162,6 +162,27 @@
             "method": "GET",
             "header": [{ "key": "Authorization", "value": "Bearer {{access_token}}" }],
             "url": "{{base_url}}/activity-logs"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Monitoring",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health"
+          }
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/metrics"
           }
         }
       ]
