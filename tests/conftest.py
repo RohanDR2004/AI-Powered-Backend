@@ -8,6 +8,9 @@ os.environ.setdefault(
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("OPENAI_API_KEY", "")
 os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
+# Separate logical Redis DB for tests (db 1, not the dev default db 0), so
+# test runs never pollute or get polluted by real rate-limit/cache state.
+os.environ.setdefault("REDIS_URL", "redis://127.0.0.1:6379/1")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,6 +20,7 @@ from sqlalchemy.pool import NullPool
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
+from app.redis_client import redis_client
 
 # NullPool: fixtures and the TestClient's internal event loop each get a fresh
 # asyncpg connection instead of sharing a pooled one across different loops.
@@ -40,6 +44,26 @@ def _reset_db():
     asyncio.run(_create_tables())
     yield
     asyncio.run(_drop_tables())
+
+
+async def _flush_test_redis():
+    try:
+        await redis_client.flushdb()
+    except Exception:
+        # Redis may not be running in some environments - tests must still
+        # pass (rate limiting/caching fail open), so a flush failure here
+        # is not fatal, just means less isolation between tests that run.
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _reset_redis():
+    """Each test gets a clean rate-limit/cache slate, mirroring _reset_db.
+    Without this, real rate-limit counters (now that Redis is live) persist
+    across tests within the same 60s window and tests start seeing 429s
+    from each other's requests, not from their own behavior under test."""
+    asyncio.run(_flush_test_redis())
+    yield
 
 
 async def override_get_db():

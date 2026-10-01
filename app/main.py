@@ -86,9 +86,13 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    # exc.headers carries things like Retry-After (429) and WWW-Authenticate
+    # (401) set at the raise site - dropping it here would silently discard
+    # them from every error response.
     return JSONResponse(
         status_code=exc.status_code,
         content={"detail": exc.detail},
+        headers=exc.headers,
     )
 
 
