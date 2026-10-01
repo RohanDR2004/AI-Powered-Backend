@@ -1,4 +1,4 @@
-from openai import APIError, OpenAI, OpenAIError
+from openai import APIError, AsyncOpenAI, OpenAIError
 
 from app.config import settings
 
@@ -11,16 +11,16 @@ class AIRequestError(Exception):
     pass
 
 
-def generate_ai_response(prompt: str) -> str:
+async def generate_ai_response(prompt: str) -> str:
     if not settings.openai_api_key:
         raise AIConfigurationError(
             "AI service is not configured. Set the OPENAI_API_KEY environment variable."
         )
 
-    client = OpenAI(api_key=settings.openai_api_key)
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
 
     try:
-        completion = client.chat.completions.create(
+        completion = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[{"role": "user", "content": prompt}],
         )

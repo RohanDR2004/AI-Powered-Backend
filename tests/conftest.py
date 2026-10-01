@@ -1,39 +1,50 @@
+import asyncio
 import os
 
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql+psycopg2://postgres:postgres@localhost:5432/ai_backend_test",
+    "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_backend_test",
 )
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("OPENAI_API_KEY", "")
+os.environ.setdefault("CELERY_TASK_ALWAYS_EAGER", "true")
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.config import settings
 from app.database import Base, get_db
 from app.main import app
 
-engine = create_engine(settings.database_url)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# NullPool: fixtures and the TestClient's internal event loop each get a fresh
+# asyncpg connection instead of sharing a pooled one across different loops.
+engine = create_async_engine(settings.database_url, poolclass=NullPool)
+TestingSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+
+async def _create_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
+
+async def _drop_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
 
 
 @pytest.fixture(autouse=True)
 def _reset_db():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    asyncio.run(_create_tables())
     yield
-    Base.metadata.drop_all(bind=engine)
+    asyncio.run(_drop_tables())
 
 
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+async def override_get_db():
+    async with TestingSessionLocal() as session:
+        yield session
 
 
 app.dependency_overrides[get_db] = override_get_db
