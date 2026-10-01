@@ -1,14 +1,18 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
+from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import settings
 from app.database import Base, engine
+from app.redis_client import redis_client
 from app.routers import activity_logs, ai, auth, tasks, users
 
 logging.basicConfig(
@@ -57,6 +61,20 @@ app.include_router(tasks.router)
 app.include_router(ai.router)
 app.include_router(activity_logs.router)
 
+Instrumentator().instrument(app).expose(app, endpoint="/metrics", include_in_schema=settings.enable_docs)
+
+
+@app.middleware("http")
+async def request_timing_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "%s %s -> %d (%.1fms)", request.method, request.url.path, response.status_code, duration_ms
+    )
+    response.headers["X-Process-Time-Ms"] = f"{duration_ms:.1f}"
+    return response
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -89,3 +107,25 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.get("/", tags=["health"])
 def health_check():
     return {"status": "ok", "service": settings.app_name}
+
+
+@app.get("/health", tags=["health"])
+async def health():
+    checks: dict[str, str] = {}
+
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as exc:
+        checks["database"] = f"error: {exc}"
+
+    try:
+        await redis_client.ping()
+        checks["redis"] = "ok"
+    except Exception as exc:
+        checks["redis"] = f"error: {exc}"
+
+    database_ok = checks["database"] == "ok"
+    overall = "ok" if all(v == "ok" for v in checks.values()) else ("degraded" if database_ok else "unhealthy")
+    return JSONResponse(status_code=200 if database_ok else 503, content={"status": overall, "checks": checks})
