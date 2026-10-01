@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,6 +9,15 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_backend"
     db_pool_size: int = 10
     db_max_overflow: int = 20
+
+    @field_validator("database_url")
+    @classmethod
+    def _ensure_asyncpg_driver(cls, value: str) -> str:
+        """Managed Postgres providers (Render, Heroku, ...) hand out plain
+        postgresql:// URLs; the app needs the asyncpg driver prefix."""
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
 
     @property
     def sync_database_url(self) -> str:

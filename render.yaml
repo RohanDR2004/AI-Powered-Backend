@@ -1,0 +1,72 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec)
+#
+# This file is deployment CONFIGURATION ONLY. No secrets are hard-coded —
+# `sync: false` fields must be filled in manually in the Render dashboard
+# after the blueprint is created (see README.md "Deployment" section for
+# the exact manual steps).
+
+databases:
+  - name: ai-backend-db
+    databaseName: ai_backend
+    plan: free
+
+services:
+  # Managed Redis (Key Value) instance for caching, rate limiting, and the
+  # Celery broker/backend.
+  - type: keyvalue
+    name: ai-backend-redis
+    plan: free
+    ipAllowList: []
+
+  - type: web
+    name: ai-backend-api
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-backend-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ai-backend-redis
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        sync: false # set a unique random secret in the Render dashboard
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: JWT_ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"
+      - key: OPENAI_API_KEY
+        sync: false # set your real key in the Render dashboard
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: ALLOWED_ORIGINS
+        sync: false # set your frontend's real origin(s) in the dashboard
+      - key: ENABLE_DOCS
+        value: "true"
+      - key: ENVIRONMENT
+        value: production
+
+  - type: worker
+    name: ai-backend-celery-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: celery -A app.celery_app worker --loglevel=info
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-backend-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ai-backend-redis
+          property: connectionString
+      - key: JWT_SECRET_KEY
+        sync: false
