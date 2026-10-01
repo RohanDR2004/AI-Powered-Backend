@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o-mini"
 
     # Redis (caching, rate limiting, Celery broker/backend)
-    redis_url: str = "redis://localhost:6379/0"
+    # 127.0.0.1 (not "localhost") avoids slow IPv6-then-IPv4 dual-stack
+    # resolution delays when Redis is unreachable.
+    redis_url: str = "redis://127.0.0.1:6379/0"
     cache_ttl_seconds: int = 30
 
     # Celery

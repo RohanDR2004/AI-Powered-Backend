@@ -5,8 +5,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.security import create_access_token, hash_password, verify_password
+from app.config import settings
 from app.database import get_db
 from app.models.user import User
+from app.rate_limit import RateLimiter
 from app.schemas.auth import Token
 from app.schemas.user import UserCreate, UserLogin, UserOut
 from app.workers.tasks import enqueue_activity_log
@@ -14,7 +16,12 @@ from app.workers.tasks import enqueue_activity_log
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(RateLimiter(settings.rate_limit_register))],
+)
 async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == payload.email))
     existing_user = result.scalar_one_or_none()
@@ -34,7 +41,11 @@ async def register(payload: UserCreate, db: AsyncSession = Depends(get_db)):
     return user
 
 
-@router.post("/login", response_model=Token)
+@router.post(
+    "/login",
+    response_model=Token,
+    dependencies=[Depends(RateLimiter(settings.rate_limit_login))],
+)
 async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()

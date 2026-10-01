@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.auth.dependencies import get_current_user
+from app.config import settings
 from app.models.user import User
+from app.rate_limit import RateLimiter
 from app.schemas.ai import AIGenerateRequest, AIGenerateResponse
 from app.services.ai_service import AIConfigurationError, AIRequestError, generate_ai_response
 from app.workers.tasks import enqueue_activity_log
@@ -9,7 +11,11 @@ from app.workers.tasks import enqueue_activity_log
 router = APIRouter(prefix="/ai", tags=["ai"])
 
 
-@router.post("/generate", response_model=AIGenerateResponse)
+@router.post(
+    "/generate",
+    response_model=AIGenerateResponse,
+    dependencies=[Depends(RateLimiter(settings.rate_limit_ai_generate))],
+)
 async def generate(
     payload: AIGenerateRequest,
     current_user: User = Depends(get_current_user),
