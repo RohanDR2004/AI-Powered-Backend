@@ -1,0 +1,5 @@
+Method,Name,Error,Occurrences
+POST,/auth/register,HTTPError('429 Client Error: Too Many Requests for url: /auth/register'),15
+GET,/tasks,HTTPError('403 Client Error: Forbidden for url: /tasks'),83
+POST,/auth/login,HTTPError('429 Client Error: Too Many Requests for url: /auth/login'),54
+POST,/tasks,HTTPError('403 Client Error: Forbidden for url: /tasks'),67
